@@ -7,6 +7,7 @@
 #include "skissm/mem_util.h"
 #include "skissm/session_manager.h"
 
+/*This function, get_pre_key_bundle_internal, is used to generate a pre-key bundle for establishing an end-to-end encrypted session with a new user. It's part of a process where the client fetches a pre-key bundle from the server for a recipient. */
 Skissm__InviteResponse *get_pre_key_bundle_internal(
     Skissm__E2eeAddress *from, const char *auth, const char *to_user_id, const char *to_domain, const char *to_device_id,
     uint8_t *group_pre_key_plaintext_data, size_t group_pre_key_plaintext_data_len
@@ -25,7 +26,7 @@ Skissm__InviteResponse *get_pre_key_bundle_internal(
     // done
     return invite_response;
 }
-
+/**/
 Skissm__InviteResponse *invite_internal(
     Skissm__Session *outbound_session
 ) {

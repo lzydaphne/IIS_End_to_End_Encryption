@@ -153,7 +153,32 @@ static uint8_t find_address(Skissm__E2eeAddress *user_address) {
     }
     return -1;
 }
+//! NOTE: CAN BE IMPROVED (WOTHOUT USING 2 LOOPS)
+/*static size_t find_user_addresses(const char *user_id, Skissm__E2eeAddress ***user_addresses) {
+    size_t user_addresses_num = 0;
+    size_t user_addresses_capacity = 10; // initial capacity for 10 addresses, adjust as needed
 
+    *user_addresses = (Skissm__E2eeAddress **)malloc(sizeof(Skissm__E2eeAddress *) * user_addresses_capacity);
+
+    for (uint8_t i = 0; i < user_data_max; i++) {
+        if (user_data_set[i].address != NULL) {
+            if (safe_strcmp(user_data_set[i].address->user->user_id, user_id)) {
+                // Resize if we're out of capacity
+                if (user_addresses_num == user_addresses_capacity) {
+                    user_addresses_capacity *= 2; // double the capacity
+                    *user_addresses = (Skissm__E2eeAddress **)realloc(*user_addresses, sizeof(Skissm__E2eeAddress *) * user_addresses_capacity);
+                }
+                copy_address_from_address(&((*user_addresses)[user_addresses_num++]), user_data_set[i].address);
+            }
+        }
+    }
+
+    // Trim excess capacity
+    *user_addresses = (Skissm__E2eeAddress **)realloc(*user_addresses, sizeof(Skissm__E2eeAddress *) * user_addresses_num);
+
+    return user_addresses_num;
+}
+*/
 static size_t find_user_addresses(const char *user_id, Skissm__E2eeAddress ***user_addresses) {
     size_t user_addresses_num = 0;
     uint8_t i;
@@ -748,7 +773,7 @@ Skissm__SendOne2oneMsgResponse *mock_send_one2one_msg(Skissm__E2eeAddress *from,
     // done
     return response;
 }
-
+//!
 Skissm__CreateGroupResponse *mock_create_group(Skissm__E2eeAddress *from, const char *auth, Skissm__CreateGroupRequest *request) {
     if (request == NULL) {
         return NULL;
@@ -764,8 +789,13 @@ Skissm__CreateGroupResponse *mock_create_group(Skissm__E2eeAddress *from, const 
     mock_random_group_address(&(cur_group_data->group_address));
 
     // pack CreateGroupMsg
+    /*The function then packs the CreateGroupMsg into a binary format, after setting its group_info's group_address field.*/
     Skissm__CreateGroupMsg *create_group_msg = request->msg;
     copy_address_from_address(&(create_group_msg->group_info->group_address), cur_group_data->group_address);
+    /*
+    In Protocol Buffers, a message can be serialized into a binary format that can be transmitted over the network or stored in a file. This serialized binary format is often referred to as the message's "packed" form.
+
+    When you have a Skissm__CreateGroupMsg message and want to serialize it into binary format, you will need to allocate a buffer to store the serialized message. skissm__create_group_msg__get_packed_size function tells you how large this buffer needs to be.*/
     size_t create_group_msg_data_len = skissm__create_group_msg__get_packed_size(create_group_msg);
     uint8_t create_group_msg_data[create_group_msg_data_len];
     skissm__create_group_msg__pack(create_group_msg, create_group_msg_data);
@@ -776,7 +806,7 @@ Skissm__CreateGroupResponse *mock_create_group(Skissm__E2eeAddress *from, const 
     cur_group_data->group_members_num = group_info->n_group_members;
     copy_group_members(&(cur_group_data->group_members), group_info->group_members, group_info->n_group_members);
 
-    // send the message to all the other members in the group
+    //* send the message to all the other members in the group
     Skissm__E2eeAddress *sender_address = create_group_msg->sender_address;
     const char *sender_user_id = sender_address->user->user_id;
     uint8_t i, j;

@@ -63,7 +63,7 @@ Skissm__RegisterUserResponse *register_user(
     // done
     return response;
 }
-
+/*The function reinvite(Skissm__Session *session) aims to resend an invitation to establish a session if a response has not been received within a certain time period (defined by INVITE_WAITING_TIME_MS).*/
 Skissm__InviteResponse *reinvite(Skissm__Session *session) {
     Skissm__InviteResponse *response = NULL;
     if (!session->responded) {
@@ -77,6 +77,8 @@ Skissm__InviteResponse *reinvite(Skissm__Session *session) {
         get_skissm_plugin()->db_handler.store_session(session);
         response = invite_internal(session);
 
+        /*If the invite_internal(session) function fails or does not return a success response code (SKISSM__RESPONSE_CODE__RESPONSE_CODE_OK), the function unloads the session using get_skissm_plugin()->db_handler.unload_session(session->session_owner, session->from, session->to). This unloading step is crucial as it allows the invitation to be retried.*/
+
         if (response == NULL || response->code != SKISSM__RESPONSE_CODE__RESPONSE_CODE_OK) {
             // unload outbound_session to enable retry
             get_skissm_plugin()->db_handler.unload_session(session->session_owner, session->from, session->to);
@@ -85,7 +87,7 @@ Skissm__InviteResponse *reinvite(Skissm__Session *session) {
 
     return response;
 }
-
+//NOTE:
 Skissm__InviteResponse *invite(Skissm__E2eeAddress *from, const char *to_user_id, const char *to_domain) {
     Skissm__Account *account = NULL;
     get_skissm_plugin()->db_handler.load_account_by_address(from, &account);
@@ -376,7 +378,7 @@ Skissm__SendOne2oneMsgResponse *send_one2one_msg(
     // done
     return response;
 }
-
+//NOTE:
 Skissm__CreateGroupResponse *create_group(
     Skissm__E2eeAddress *sender_address,
     const char *group_name,
@@ -389,11 +391,25 @@ Skissm__CreateGroupResponse *create_group(
         ssm_notify_log(BAD_ACCOUNT, "create_group()");
         return NULL;
     }
+/*Sending a group creation request: It then produces a CreateGroupRequest using the produce_create_group_request function, which includes the sender's address, the group name, and the list of group members. 
+This request is sent to the server using the plugin's create_group method. The server's response is then consumed by the consume_create_group_response function.
 
+The response consumption checks if the group was created successfully, and also likely sets up necessary encryption keys and initial group state.
+*/
     // send message to server
     Skissm__CreateGroupRequest *request = produce_create_group_request(sender_address, group_name, group_members, group_members_num);
+    /* 
+    Skissm__SendOne2oneMsgResponse * (*send_one2one_msg)(Skissm__E2eeAddress *from, const char *auth, Skissm__SendOne2oneMsgRequest *);
+    /**
+     * @brief Create group
+     * @param from
+     * @param auth
+     * @param request
+     * @return response
+     */*/
     Skissm__CreateGroupResponse *response = get_skissm_plugin()->proto_handler.create_group(account->address, account->jwt, request);
     bool succ = consume_create_group_response(account->e2ee_pack_id, sender_address, group_name, group_members, group_members_num, response);
+/*Handling failure: If the response consumption indicates failure (succ is false), the function packs the CreateGroupRequest into a binary format and stores it as a pending request. This suggests that the function has a mechanism to handle network failures or other issues preventing immediate group creation. These stored requests might be sent again later when the issue is resolved.*/
     if (!succ) {
         // pack
         size_t request_data_len = skissm__create_group_request__get_packed_size(request);

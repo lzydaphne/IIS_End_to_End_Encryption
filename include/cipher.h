@@ -52,6 +52,7 @@ typedef struct cipher_suite_t {
      * @param pub_key
      * @param priv_key
      */
+    //! function pointer
     void (*asym_key_gen)(
         ProtobufCBinaryData *,
         ProtobufCBinaryData *

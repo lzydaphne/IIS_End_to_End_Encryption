@@ -27,17 +27,18 @@
 extern "C" {
 #endif
 
-#include "skissm/skissm.h"
-
+#include "skissm.h"
+//A struct for storing a face-to-face (f2f) session including the peer address and the session details.
 typedef struct f2f_session_mid{
     Skissm__E2eeAddress *peer_address;
     Skissm__Session *f2f_session;
     struct f2f_session_mid *next;
 } f2f_session_mid;
 
+// A struct that holds the local account and a list of f2f sessions.
 typedef struct account_context{
     Skissm__Account *local_account;
-    f2f_session_mid *f2f_session_mid_list;
+    f2f_session_mid *f2f_session_mid_list; 
     struct account_context *next;
 } account_context;
 

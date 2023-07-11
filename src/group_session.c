@@ -31,6 +31,7 @@
 static const uint8_t CHAIN_KEY_SEED[1] = {0x02};
 static const char MESSAGE_KEY_SEED[] = "MessageKeys";
 
+//This function advances a group's chain key. It takes a cipher suite and a chain key as inputs, generates a hash using HMAC (a type of cryptographic hash function), and then overwrites the old chain key with this new hash.
 void advance_group_chain_key(const cipher_suite_t *cipher_suite, ProtobufCBinaryData *chain_key, uint32_t iteration) {
     int group_shared_key_len = cipher_suite->get_crypto_param().hash_len;
     uint8_t shared_key[group_shared_key_len];
@@ -86,6 +87,7 @@ static void pack_group_pre_key(
     skissm__plaintext__free_unpacked(plaintext, NULL);
 }
 
+/*The pack_group_pre_key_plaintext function creates a pre-key bundle for a group and packs it into a plaintext data structure for transport. A pre-key bundle is a collection of cryptographic keys used to establish secure group communication.*/
 size_t pack_group_pre_key_plaintext(
     Skissm__GroupSession *outbound_group_session,
     uint8_t **group_pre_key_plaintext_data,
@@ -109,6 +111,7 @@ size_t pack_group_pre_key_plaintext(
     copy_protobuf_from_protobuf(&(group_pre_key_bundle->signature_public_key), &(outbound_group_session->signature_public_key));
 
     // pack the group_pre_key_bundle
+    //Calls pack_group_pre_key to serialize the group_pre_key_bundle into a byte array (group_pre_key_plaintext_data) and returns its length (group_pre_key_plaintext_data_len).
     size_t group_pre_key_plaintext_data_len;
     pack_group_pre_key(
         group_pre_key_bundle,
@@ -117,20 +120,22 @@ size_t pack_group_pre_key_plaintext(
 
     // release
     // group_pre_key_bundle is released in pack_group_pre_key()
-
+//The function returns the length of the serialized pre-key bundle data.
     // done
     return group_pre_key_plaintext_data_len;
 }
-
+//NOTE:
 void create_outbound_group_session(
-    const char *e2ee_pack_id,
-    Skissm__E2eeAddress *user_address,
-    const char *group_name,
-    Skissm__E2eeAddress *group_address,
-    Skissm__GroupMember **group_members,
+    const char *e2ee_pack_id,//an identifier for a particular encryption/decryption suite to use
+    Skissm__E2eeAddress *user_address,// the address of the user who is creating the session     
+    const char *group_name,//the name of the group for which the session is being created
+    Skissm__E2eeAddress *group_address,//the address of the group for which the session is being created
+    Skissm__GroupMember **group_members,// an array of addresses of the group members
     size_t group_members_num,
-    char *old_session_id
+    char *old_session_id//an id of the previous session
 ) {
+    /*The function first fetches the account related to the user address and validates it. If the account is null, it returns an error. 
+    Then, it sets up the cipher suite according to the provided e2ee_pack_id.*/
     Skissm__Account *account = NULL;
     get_skissm_plugin()->db_handler.load_account_by_address(user_address, &account);
     if (account == NULL) {
@@ -138,9 +143,10 @@ void create_outbound_group_session(
         return;
     }
     
-    const cipher_suite_t *cipher_suite = get_e2ee_pack(e2ee_pack_id)->cipher_suite;
-    int sign_key_len = cipher_suite->get_crypto_param().sign_pub_key_len;
-
+    const cipher_suite_t *cipher_suite = get_e2ee_pack(e2ee_pack_id)->cipher_suite;//get target cipher suite
+    int sign_key_len = cipher_suite->get_crypto_param().sign_pub_key_len;//represents the length of the public key used for signing.
+/*The function then creates a new GroupSession object, setting its various attributes like the version, owner, session_id, etc.
+The function also generates a random chain key for the session, along with a signature public and private key pair. These are then used to generate the associated_data attribute.*/
     Skissm__GroupSession *outbound_group_session = (Skissm__GroupSession *) malloc(sizeof(Skissm__GroupSession));
     skissm__group_session__init(outbound_group_session);
 
@@ -160,12 +166,14 @@ void create_outbound_group_session(
 
     outbound_group_session->sequence = 0;
 
+//!
     outbound_group_session->chain_key.len = cipher_suite->get_crypto_param().hash_len;
     outbound_group_session->chain_key.data = (uint8_t *) malloc(sizeof(uint8_t) * outbound_group_session->chain_key.len);
     get_skissm_plugin()->common_handler.gen_rand(outbound_group_session->chain_key.data, outbound_group_session->chain_key.len);
 
+// for signature
     cipher_suite->sign_key_gen(&(outbound_group_session->signature_public_key), &(outbound_group_session->signature_private_key));
-
+//The "Associated Data" (AD) referred to in AEAD is data that is included in the authentication, but not in the encryption. This might be data that needs to be authenticated but also needs to remain in plaintext for various reasons.
     int ad_len = 2 * sign_key_len;
     outbound_group_session->associated_data.len = ad_len;
     outbound_group_session->associated_data.data = (uint8_t *) malloc(sizeof(uint8_t) * ad_len);
@@ -175,13 +183,16 @@ void create_outbound_group_session(
     get_skissm_plugin()->db_handler.store_group_session(outbound_group_session);
 
     uint8_t *group_pre_key_plaintext_data = NULL;
+    //! 打包
     size_t group_pre_key_plaintext_data_len = pack_group_pre_key_plaintext(outbound_group_session, &group_pre_key_plaintext_data, old_session_id);
 
     // send the group pre-key message to the members in the group
     size_t i, j;
     for (i = 0; i < outbound_group_session->group_info->n_group_members; i++) {
+        //For each member, it retrieves the user's end-to-end encryption (E2EE) address (Skissm__E2eeAddress), which consists of the member's domain and user ID.
         Skissm__E2eeAddress *group_member_address = (Skissm__E2eeAddress *)malloc(sizeof(Skissm__E2eeAddress));
         skissm__e2ee_address__init(group_member_address);
+        //It then checks if there are any existing outbound sessions (outbound_sessions) for that group member. An outbound session, in this case, would likely be a communication channel or pathway set up for sending encrypted messages to that group member.
         group_member_address->domain = strdup(outbound_group_session->group_info->group_members[i]->domain);
         Skissm__PeerUser *peer_user = (Skissm__PeerUser *)malloc(sizeof(Skissm__PeerUser));
         skissm__peer_user__init(peer_user);
@@ -192,7 +203,12 @@ void create_outbound_group_session(
         size_t outbound_sessions_num = get_skissm_plugin()->db_handler.load_outbound_sessions(
             outbound_group_session->session_owner, group_member_address->user->user_id, &outbound_sessions
         );
+//!send
+/*If there are outbound sessions already set up for that group member:
 
+It checks each session (outbound_sessions[j]), and if the session is already responded to (outbound_session->responded), it directly sends the group pre-key to that session.
+
+If the session is not yet responded to, it generates a unique identifier (pending_plaintext_id) for the group pre-key and stores it in the database. This way, the group pre-key can be sent as soon as the recipient responds.*/
         if (outbound_sessions_num > 0 && outbound_sessions != NULL) {
             for (j = 0; j < outbound_sessions_num; j++) {
                 Skissm__Session *outbound_session = outbound_sessions[j];
@@ -222,6 +238,8 @@ void create_outbound_group_session(
             // release outbound_sessions
             free_mem((void **)&outbound_sessions, sizeof(Skissm__Session *) * outbound_sessions_num);
         } else {
+            /*If there are no outbound sessions for the group member, it sends an invite to the group member to establish a session. 
+            The invite includes the group pre-key (which is part of group_pre_key_plaintext_data), and the member's user ID and domain, which were stored earlier.*/
             /** Since we haven't created any session, we need to create a session before sending the group pre-key. */
             Skissm__InviteResponse *response = get_pre_key_bundle_internal(
                 outbound_group_session->session_owner,
@@ -235,6 +253,7 @@ void create_outbound_group_session(
         }
 
         // release
+        //At the end of each iteration, it releases the memory allocated to the E2EE address for that member (group_member_address).
         skissm__e2ee_address__free_unpacked(group_member_address, NULL);
     }
 
@@ -243,6 +262,7 @@ void create_outbound_group_session(
     skissm__group_session__free_unpacked(outbound_group_session, NULL);
 }
 
+/*An "inbound" group session generally refers to the establishment of a secure communication channel for receiving encrypted messages from a group.*/
 void create_inbound_group_session(
     const char *e2ee_pack_id,
     Skissm__GroupPreKeyBundle *group_pre_key_bundle,

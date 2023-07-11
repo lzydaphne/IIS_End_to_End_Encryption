@@ -28,7 +28,7 @@
 account_context *account_context_list = NULL;
 
 void account_begin() {
-    // load accounts that may be null
+    // load accounts that may be null,loading all accounts from the database
     Skissm__Account **accounts = NULL;
     size_t account_num = get_skissm_plugin()->db_handler.load_accounts(&accounts);
 
@@ -37,13 +37,13 @@ void account_begin() {
     size_t i;
     for (i = 0; i < account_num; i++) {
         cur_account = accounts[i];
-        set_account(cur_account);
+        set_account(cur_account);//sets the provided account to the account context list.
 
         // check if the signed pre-key expired
         now = get_skissm_plugin()->common_handler.gen_ts();
-        if (now > cur_account->signed_pre_key->ttl) {
+        if (now > cur_account->signed_pre_key->ttl) { //change the signed pre-key if it is expired
             generate_signed_pre_key(cur_account);
-            Skissm__PublishSpkResponse *response = publish_spk_internal(cur_account);
+            Skissm__PublishSpkResponse *response = publish_spk_internal(cur_account);//The new signed pre-key is then published to the server 
             skissm__publish_spk_response__free_unpacked(response, NULL);
         }
 
@@ -57,6 +57,7 @@ void account_begin() {
         resume_connection_internal(cur_account);
 
         // release
+        // frees the memory allocated to the current account.
         skissm__account__free_unpacked(cur_account, NULL);
     }
 
@@ -136,6 +137,7 @@ Skissm__Account *create_account(uint64_t account_id, const char *e2ee_pack_id) {
 account_context *get_account_context(Skissm__E2eeAddress *address) {
     if (account_context_list != NULL) {
         account_context *cur_account_context = account_context_list;
+        //TODO improve the search efficiency
         while (cur_account_context != NULL) {
             if (compare_address(cur_account_context->local_account->address, address)) {
                 return cur_account_context;
@@ -151,6 +153,7 @@ void set_account(Skissm__Account *account) {
         return;
     if (account_context_list != NULL) {
         account_context *cur_account_context = account_context_list;
+        //TODO improve the search efficiency
         while (cur_account_context->next != NULL) {
             cur_account_context = cur_account_context->next;
         }
@@ -187,7 +190,9 @@ size_t generate_signed_pre_key(Skissm__Account *account) {
     cipher_suite->asym_key_gen(&(account->signed_pre_key->key_pair->public_key), &(account->signed_pre_key->key_pair->private_key));
     account->signed_pre_key->spk_id = next_signed_pre_key_id;
 
-    // generate a signature
+    // generate a signature for the public key of the newly created key pair. 
+    //The signature is generated using the account's identity key (a long-term key pair for the user) and the new pre-key's public key.
+    //The signature is then stored in the signed pre-key structure.
     int pub_key_len = cipher_suite->get_crypto_param().asym_pub_key_len;
     int sig_len = cipher_suite->get_crypto_param().sig_len;
     account->signed_pre_key->signature.data = (uint8_t *)malloc(sig_len);
@@ -196,11 +201,13 @@ size_t generate_signed_pre_key(Skissm__Account *account) {
 
     int64_t now = get_skissm_plugin()->common_handler.gen_ts();
     account->signed_pre_key->ttl = now + SIGNED_PRE_KEY_EXPIRATION_MS;
+    //It then sets a time-to-live (ttl) value for the signed pre-key, which is the current timestamp plus a constant representing the expiration time in milliseconds.
 
     return 0;
 }
 
 const Skissm__OneTimePreKey *lookup_one_time_pre_key(Skissm__Account *account, uint32_t one_time_pre_key_id) {
+    ////TODO improve the search efficiency
     Skissm__OneTimePreKey **cur = account->one_time_pre_keys;
     size_t i;
     for (i = 0; i < account->n_one_time_pre_keys; i++) {

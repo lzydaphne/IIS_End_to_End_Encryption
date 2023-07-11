@@ -309,7 +309,7 @@ int crypto_sphincsplus_shake256_verify(
     result = crypto_sign_verify(signature_in, SPX_BYTES, msg, msg_len, public_key);
     return result;
 }
-
+//!
 void crypto_aes_encrypt_gcm(
     const uint8_t *plaintext_data, size_t plaintext_data_len,
     const uint8_t *aes_key, const uint8_t *iv,

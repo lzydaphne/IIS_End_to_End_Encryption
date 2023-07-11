@@ -105,7 +105,13 @@ Skissm__GetPreKeyBundleRequest *produce_get_pre_key_bundle_request(
         request->device_id = strdup(to_device_id);
     return request;
 }
+/*Pre-keys are part of the end-to-end encryption process in many communication protocols. They are used to establish secure communication sessions between different devices or participants without requiring them to be online at the same time. 
 
+When a device retrieves pre-key bundles from a server, it gets the bundles for all devices associated with a particular user. This will include the requester's own device since it is associated with the same user.
+
+However, a device doesn't need to establish a secure session with itself. Therefore, if a pre-key bundle corresponds to the same device that is trying to establish the secure sessions (i.e., the requester's device), it makes sense to skip it. 
+
+In short, the line in the code is there to ensure that a device doesn't try to initiate a secure communication session with itself, which is unnecessary and would only consume resources without any benefits.*/
 Skissm__InviteResponse *consume_get_pre_key_bundle_response(
     Skissm__E2eeAddress *from,
     uint8_t *group_pre_key_plaintext_data,
@@ -127,6 +133,7 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
             }
 
             // find an account
+            /*It tries to load an account associated with the requester's address. If there's no such account, it logs a message and returns NULL.*/
             Skissm__Account *account = NULL;
             get_skissm_plugin()->db_handler.load_account_by_address(from, &account);
             if (account == NULL) {
@@ -135,6 +142,7 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
             }
 
             // store the group pre-keys if necessary
+            /*If a group pre-key plaintext data exists, it stores these data as a pending plaintext (to be sent later) associated with a unique ID (a new UUID).*/
             if (group_pre_key_plaintext_data != NULL) {
                 ssm_notify_log(DEBUG_LOG, "consume_get_pre_key_bundle_response() store the group pre-keys");
                 char *pending_plaintext_id = generate_uuid_str();
@@ -149,12 +157,13 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
                 free(pending_plaintext_id);
             }
 
-            // prepare to create an outbound session
+            //! prepare to create an outbound session
+            /*It prepares to create a new outbound session using the requester's address, the PreKey Bundle owner's address, and a session ID obtained from the PreKey Bundle.*/
             const char *e2ee_pack_id = cur_pre_key_bundle->e2ee_pack_id;
             Skissm__Session *outbound_session = (Skissm__Session *) malloc(sizeof(Skissm__Session));
             initialise_session(outbound_session, e2ee_pack_id, from, cur_address);
             copy_address_from_address(&(outbound_session->session_owner), from);
-
+/*It uses the new_outbound_session function from the associated session suite to create a new session. If this is successful, it returns an "Invite Response". Otherwise, it logs an error message and returns NULL.*/
             const session_suite_t *session_suite = get_e2ee_pack(e2ee_pack_id)->session_suite;
             Skissm__InviteResponse *invite_response =
                 session_suite->new_outbound_session(outbound_session, account, cur_pre_key_bundle);
@@ -375,12 +384,13 @@ bool consume_new_user_device_msg(Skissm__E2eeAddress *receiver_address, Skissm__
     return succ;
 }
 
+/*The produce_invite_request() function is constructing an invitation request for an encrypted communication session. The function is creating a structure of type Skissm__InviteRequest, initializing its fields with information from the outbound_session.*/
 Skissm__InviteRequest *produce_invite_request(
     Skissm__Session *outbound_session
 ) {
     Skissm__InviteRequest *request = (Skissm__InviteRequest *) malloc(sizeof(Skissm__InviteRequest));
     skissm__invite_request__init(request);
-
+    /*It creates a Skissm__InviteMsg message and initializes it. This message will contain the necessary information to set up a session between two devices.*/
     Skissm__InviteMsg *msg = (Skissm__InviteMsg *) malloc(sizeof(Skissm__InviteMsg));
     skissm__invite_msg__init(msg);
 
@@ -391,10 +401,17 @@ Skissm__InviteRequest *produce_invite_request(
     copy_address_from_address(&(msg->to), outbound_session->to);
 
     copy_protobuf_from_protobuf(&(msg->alice_identity_key), &(outbound_session->alice_identity_key));
+/*A pre-shared key (PSK) is a shared secret which was previously shared between the two parties using some secure channel before it needs to be used. Such systems almost always use symmetric key cryptographic algorithms.
 
+The key is used to establish a secure connection under protocols like WPA, WPA2 and IKEv2, etc. This key, or series of keys, is used in the encryption and decryption of the communication between the two parties.
+
+Pre-shared keys are often used in or alongside public key systems where one system needs to be run automatically. The PSK will be installed manually on the machine, and that machine can then communicate securely with any others it knows the keys for.
+
+The advantage of using a pre-shared key is that you don't have to worry about someone intercepting your encryption key while it is being transmitted. The disadvantage is that it does not scale well because each pair of communicating systems or devices need a unique key. This can quickly become unwieldy with many devices or systems communicating with each other.*/
     size_t pre_shared_keys_num = outbound_session->n_pre_shared_keys;
     ProtobufCBinaryData *pre_shared_keys = outbound_session->pre_shared_keys;
     msg->n_pre_shared_keys = pre_shared_keys_num;
+    /*It checks if there are pre-shared keys in the outbound_session. If so, it allocates memory for these keys in the msg and copies them over.*/
     if (pre_shared_keys_num > 0 && pre_shared_keys != NULL) {
         msg->pre_shared_keys = (ProtobufCBinaryData *) malloc(sizeof(ProtobufCBinaryData) * pre_shared_keys_num);
         size_t i = 0;
@@ -402,9 +419,10 @@ Skissm__InviteRequest *produce_invite_request(
             copy_protobuf_from_protobuf(&(msg->pre_shared_keys[i]), &(pre_shared_keys[i]));
         }
     }
+    /*It copies over Bob's signed pre-key ID and one-time pre-key ID from the outbound_session to the msg.*/
     msg->bob_signed_pre_key_id = outbound_session->bob_signed_pre_key_id;
     msg->bob_one_time_pre_key_id = outbound_session->bob_one_time_pre_key_id;
-
+    /*Finally, it sets the msg field of the request to the constructed msg, and returns the request.*/
     // done
     request->msg = msg;
     return request;
@@ -524,15 +542,19 @@ bool consume_accept_msg(Skissm__E2eeAddress *receiver_address, Skissm__AcceptMsg
         return false;
     }
     const session_suite_t *session_suite = get_e2ee_pack(msg->e2ee_pack_id)->session_suite;
+    /*Completing the session: If the session does exist, it fetches the session suite corresponding to the e2ee (end-to-end encryption) pack id from the message. The complete_outbound_session function in the session suite is then called, using the session and the message as inputs.*/
     int result = session_suite->complete_outbound_session(outbound_session, msg);
 
     // try to send group pre-keys if necessary
+    /*Sending group pre-keys: If there are any pending plaintext data, which could be pre-keys for a group session, it attempts to send them using send_pending_plaintext_data.*/
     send_pending_plaintext_data(outbound_session);
 
     // store sesson state
+    /*Storing the session: The session state is updated in the database.*/
     get_skissm_plugin()->db_handler.store_session(outbound_session);
 
     // notify
+    /*Notifying about the session readiness: A notification is sent that the outbound session is ready.*/
     ssm_notify_outbound_session_ready(outbound_session);
 
     return result >= 0;

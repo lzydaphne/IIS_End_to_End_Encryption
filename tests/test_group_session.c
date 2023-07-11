@@ -20,7 +20,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
+// #include "..\include\account.h"
+// #include "skissm\include\account.h"
 #include "skissm/account.h"
 #include "skissm/account_manager.h"
 #include "skissm/e2ee_client.h"
@@ -121,7 +122,7 @@ static void on_f2f_password_created(
         f2f_pw_data->next->next = NULL;
     }
 }
-
+/*The on_f2f_password_acquired function is intended to retrieve a face-to-face (f2f) password between a sender and a receiver.*/
 static void on_f2f_password_acquired(
     Skissm__E2eeAddress *sender,
     Skissm__E2eeAddress *receiver,
@@ -402,6 +403,7 @@ static void test_create_group() {
     mock_bob_account(2, "bob");
 
     // Alice invites Bob to create a group
+    // Skissm__InviteResponse *invite(Skissm__E2eeAddress *from, const char *to_user_id, const char *to_domain)
     invite(account_data[0]->address, account_data[1]->address->user->user_id, account_data[1]->address->domain);
 
     // the first group member is Alice
