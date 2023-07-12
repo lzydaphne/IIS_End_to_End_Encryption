@@ -166,24 +166,33 @@ The function also generates a random chain key for the session, along with a sig
 
     outbound_group_session->sequence = 0;
 
-//!
+//! Generate a random chain key for the session
+/*
+Key Generation: It also generates a random chain key for the session, along with a signature public and private key pair. These keys are used to generate the associated_data attribute, which is authenticated but remains in plaintext for various reasons.*/
     outbound_group_session->chain_key.len = cipher_suite->get_crypto_param().hash_len;
     outbound_group_session->chain_key.data = (uint8_t *) malloc(sizeof(uint8_t) * outbound_group_session->chain_key.len);
     get_skissm_plugin()->common_handler.gen_rand(outbound_group_session->chain_key.data, outbound_group_session->chain_key.len);
 
-// for signature
+//! generate signature key pair
     cipher_suite->sign_key_gen(&(outbound_group_session->signature_public_key), &(outbound_group_session->signature_private_key));
+
+    /*The reason why the signature public key is being used in the AD is likely to tie the session's encrypted content to a specific public key, thus binding the identity of the sender (who holds the corresponding private key) to the encrypted data. This can provide assurances of data origin authentication and integrity in addition to confidentiality.*/
+    
 //The "Associated Data" (AD) referred to in AEAD is data that is included in the authentication, but not in the encryption. This might be data that needs to be authenticated but also needs to remain in plaintext for various reasons.
-    int ad_len = 2 * sign_key_len;
+    int ad_len = 2 * sign_key_len; // The length of the associated data (AD) is being calculated. It's two times the length of the signature public key. This means that the AD will contain two instances of the signature public key.
     outbound_group_session->associated_data.len = ad_len;
     outbound_group_session->associated_data.data = (uint8_t *) malloc(sizeof(uint8_t) * ad_len);
+    // The first half of the AD is being set with the signature public key.
     memcpy(outbound_group_session->associated_data.data, outbound_group_session->signature_public_key.data, sign_key_len);
+    // The second half of the AD is also being set with the same signature public key.
     memcpy((outbound_group_session->associated_data.data) + sign_key_len, outbound_group_session->signature_public_key.data, sign_key_len);
 
     get_skissm_plugin()->db_handler.store_group_session(outbound_group_session);
 
     uint8_t *group_pre_key_plaintext_data = NULL;
-    //! 打包
+    //! 打包。把 pre key bundle 打包成 group pre key plaintext
+    /*Then a GroupPreKeyBundle message will be packed as the payload of a Plaintext type message and delivered to each group member through one-to-one  session.
+    E2EE  server  then  help  forwarding  the  one-to-one message to recipient. */
     size_t group_pre_key_plaintext_data_len = pack_group_pre_key_plaintext(outbound_group_session, &group_pre_key_plaintext_data, old_session_id);
 
     // send the group pre-key message to the members in the group
@@ -221,6 +230,7 @@ If the session is not yet responded to, it generates a unique identifier (pendin
                 } else {
                     /** Since the other has not responded, we store the group pre-key first so that
                      *  we can send it right after receiving the other's accept message.
+                     *  If  some  one-to-one  outbound is  not ready  for  sending  message,  SKISSM  will  keep  the  data  in  database,  and  the  saved “group_pre_key_plaintext”  will  be  resent  automatically  after  a  respective  AcceptMsg  has been received and successfully create the outbound session.
                      */
                     char *pending_plaintext_id = generate_uuid_str();
                     get_skissm_plugin()->db_handler.store_pending_plaintext_data(

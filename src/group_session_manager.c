@@ -26,6 +26,7 @@
 #include "skissm/mem_util.h"
 #include "skissm/session.h"
 
+//NOTE: 純粹用來產生一個 CreateGroupRequest
 Skissm__CreateGroupRequest *produce_create_group_request(
     Skissm__E2eeAddress *sender_address,
     const char *group_name,

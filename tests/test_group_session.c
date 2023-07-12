@@ -392,6 +392,7 @@ static void test_encryption(Skissm__E2eeAddress *sender_address, Skissm__E2eeAdd
     skissm__send_group_msg_response__free_unpacked(response, NULL);
 }
 
+//NOTE: FINISH TRACE @230711
 static void test_create_group() {
     // test start
     printf("test_create_group begin!!!\n");
@@ -419,6 +420,7 @@ static void test_create_group() {
     group_members[1]->user_id = strdup(account_data[1]->address->user->user_id);
     group_members[1]->domain = strdup(account_data[1]->address->domain);
     group_members[1]->role = SKISSM__GROUP_ROLE__GROUP_ROLE_MEMBER;
+
     // create the group
     Skissm__CreateGroupResponse *create_group_response = create_group(account_data[0]->address, "Group name", group_members, 2);
 
@@ -442,7 +444,7 @@ static void test_create_group() {
     tear_down();
     printf("====================================\n");
 }
-
+//NOTE: FINISH TRACE @230711
 static void test_add_group_members() {
     // test start
     printf("test_add_group_members begin!!!\n");
@@ -508,7 +510,7 @@ static void test_add_group_members() {
     tear_down();
     printf("====================================\n");
 }
-
+//NOTE: FINISH TRACE @230711
 static void test_remove_group_members() {
     // test start
     printf("test_remove_group_members begin!!!\n");

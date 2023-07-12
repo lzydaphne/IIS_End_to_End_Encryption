@@ -87,7 +87,7 @@ Skissm__InviteResponse *reinvite(Skissm__Session *session) {
 
     return response;
 }
-//NOTE:
+//NOTE: 
 Skissm__InviteResponse *invite(Skissm__E2eeAddress *from, const char *to_user_id, const char *to_domain) {
     Skissm__Account *account = NULL;
     get_skissm_plugin()->db_handler.load_account_by_address(from, &account);
@@ -98,10 +98,14 @@ Skissm__InviteResponse *invite(Skissm__E2eeAddress *from, const char *to_user_id
     
     Skissm__Session **outbound_sessions = NULL;
     Skissm__InviteResponse *response = NULL;
+
     size_t outbound_sessions_num = get_skissm_plugin()->db_handler.load_outbound_sessions(from, to_user_id, &outbound_sessions);
+    
+    //If there are no such sessions, it sends an invitation to the to_user_id at to_domain to create a new session
     if (outbound_sessions_num == 0) {
+        /*get_pre_key_bundle_internal is used for inviting. It retrieves the pre key bundle from the receiver's side which is required to set up the secure session.*/
         response = get_pre_key_bundle_internal(from, account->jwt, to_user_id, to_domain, NULL, NULL, 0);
-    } else {
+    } else {//. If there are existing sessions, it re-invites for each of those sessions.
         size_t i;
         for (i = 0; i < outbound_sessions_num; i++) {
             Skissm__Session *cur_outbound_session = outbound_sessions[i];
@@ -391,7 +395,8 @@ Skissm__CreateGroupResponse *create_group(
         ssm_notify_log(BAD_ACCOUNT, "create_group()");
         return NULL;
     }
-/*Sending a group creation request: It then produces a CreateGroupRequest using the produce_create_group_request function, which includes the sender's address, the group name, and the list of group members. 
+/*
+Sending a group creation request: It then produces a CreateGroupRequest using the produce_create_group_request function, which includes the sender's address, the group name, and the list of group members. 
 This request is sent to the server using the plugin's create_group method. The server's response is then consumed by the consume_create_group_response function.
 
 The response consumption checks if the group was created successfully, and also likely sets up necessary encryption keys and initial group state.
@@ -410,6 +415,7 @@ The response consumption checks if the group was created successfully, and also 
     Skissm__CreateGroupResponse *response = get_skissm_plugin()->proto_handler.create_group(account->address, account->jwt, request);
     bool succ = consume_create_group_response(account->e2ee_pack_id, sender_address, group_name, group_members, group_members_num, response);
 /*Handling failure: If the response consumption indicates failure (succ is false), the function packs the CreateGroupRequest into a binary format and stores it as a pending request. This suggests that the function has a mechanism to handle network failures or other issues preventing immediate group creation. These stored requests might be sent again later when the issue is resolved.*/
+//* 這邊的機制是，如果創建群組失敗，就把創建群組的請求打包成二進制格式，並將其存儲為待處理請求。這表明該函數具有處理網絡故障或其他問題以防止立即創建群組的機制。這些存儲的請求，會在等到未來接收到對方的訊息時，會再次發送，
     if (!succ) {
         // pack
         size_t request_data_len = skissm__create_group_request__get_packed_size(request);
@@ -431,7 +437,7 @@ The response consumption checks if the group was created successfully, and also 
     // done
     return response;
 }
-
+//NOTE:
 Skissm__AddGroupMembersResponse *add_group_members(
     Skissm__E2eeAddress *sender_address,
     Skissm__E2eeAddress *group_address,
@@ -479,6 +485,7 @@ Skissm__AddGroupMembersResponse *add_group_members(
     return response;
 }
 
+//NOTE:
 Skissm__RemoveGroupMembersResponse *remove_group_members(
     Skissm__E2eeAddress *sender_address,
     Skissm__E2eeAddress *group_address,

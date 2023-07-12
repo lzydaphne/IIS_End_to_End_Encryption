@@ -12,8 +12,11 @@ Skissm__InviteResponse *get_pre_key_bundle_internal(
     Skissm__E2eeAddress *from, const char *auth, const char *to_user_id, const char *to_domain, const char *to_device_id,
     uint8_t *group_pre_key_plaintext_data, size_t group_pre_key_plaintext_data_len
 ) {
+    //對特定用戶，送出 REQUEST
     Skissm__GetPreKeyBundleRequest *request = produce_get_pre_key_bundle_request(to_user_id, to_domain, to_device_id);
+    //取得所有相關的 pre-key bundle 的 RESPONSE
     Skissm__GetPreKeyBundleResponse *response = get_skissm_plugin()->proto_handler.get_pre_key_bundle(from, auth, request);
+    // 一一處理 RESPONSE 中的 pre-key bundle(一一建立新的 OUTBOUND SESSION) 
     Skissm__InviteResponse *invite_response = consume_get_pre_key_bundle_response(
         from, group_pre_key_plaintext_data, group_pre_key_plaintext_data_len, response
     );
@@ -203,6 +206,7 @@ Skissm__SendOne2oneMsgResponse *send_one2one_msg_internal(
     const uint8_t *plaintext_data, size_t plaintext_data_len
 ) {
     Skissm__Account *account = NULL;
+    //拿到 sender 的 account
     get_skissm_plugin()->db_handler.load_account_by_address(outbound_session->from, &account);
     if (account == NULL) {
         ssm_notify_log(BAD_ACCOUNT, "send_one2one_msg_internal()");

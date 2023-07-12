@@ -92,7 +92,7 @@ static void send_f2f_session_msg(
         free_mem((void **)&self_outbound_sessions, sizeof(Skissm__Session *) * self_outbound_sessions_num);
     }
 }
-
+//NOTE:
 Skissm__GetPreKeyBundleRequest *produce_get_pre_key_bundle_request(
     const char *to_user_id, const char *to_domain, const char *to_device_id
 ) {
@@ -119,6 +119,7 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
     Skissm__GetPreKeyBundleResponse *response
 ) {
     if (response != NULL && response->code == SKISSM__RESPONSE_CODE__RESPONSE_CODE_OK) {
+        /*consume_get_pre_key_bundle_response 需要對陣列進行處理，因為response 是陣列*/
         Skissm__PreKeyBundle **their_pre_key_bundles = response->pre_key_bundles;
         size_t n_pre_key_bundles = response->n_pre_key_bundles;
         size_t i;
@@ -132,7 +133,7 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
                     continue;
             }
 
-            // find an account
+            // find an account，找到 發起人的帳號
             /*It tries to load an account associated with the requester's address. If there's no such account, it logs a message and returns NULL.*/
             Skissm__Account *account = NULL;
             get_skissm_plugin()->db_handler.load_account_by_address(from, &account);
@@ -143,6 +144,7 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
 
             // store the group pre-keys if necessary
             /*If a group pre-key plaintext data exists, it stores these data as a pending plaintext (to be sent later) associated with a unique ID (a new UUID).*/
+            //! group_pre_key_plaintext_data 這個是什麼東西??
             if (group_pre_key_plaintext_data != NULL) {
                 ssm_notify_log(DEBUG_LOG, "consume_get_pre_key_bundle_response() store the group pre-keys");
                 char *pending_plaintext_id = generate_uuid_str();
@@ -158,12 +160,14 @@ Skissm__InviteResponse *consume_get_pre_key_bundle_response(
             }
 
             //! prepare to create an outbound session
-            /*It prepares to create a new outbound session using the requester's address, the PreKey Bundle owner's address, and a session ID obtained from the PreKey Bundle.*/
+            /*
+            It prepares to create a new outbound session using the requester's address, the PreKey Bundle owner's address, and a session ID obtained from the PreKey Bundle.*/
             const char *e2ee_pack_id = cur_pre_key_bundle->e2ee_pack_id;
             Skissm__Session *outbound_session = (Skissm__Session *) malloc(sizeof(Skissm__Session));
             initialise_session(outbound_session, e2ee_pack_id, from, cur_address);
             copy_address_from_address(&(outbound_session->session_owner), from);
-/*It uses the new_outbound_session function from the associated session suite to create a new session. If this is successful, it returns an "Invite Response". Otherwise, it logs an error message and returns NULL.*/
+            /*
+            It uses the new_outbound_session function from the associated session suite to create a new session. If this is successful, it returns an "Invite Response". Otherwise, it logs an error message and returns NULL.*/
             const session_suite_t *session_suite = get_e2ee_pack(e2ee_pack_id)->session_suite;
             Skissm__InviteResponse *invite_response =
                 session_suite->new_outbound_session(outbound_session, account, cur_pre_key_bundle);

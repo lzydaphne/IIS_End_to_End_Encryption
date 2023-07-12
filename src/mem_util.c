@@ -391,6 +391,7 @@ void add_group_members_to_group_info(
     }
 }
 
+//NOTE:
 void remove_group_members_from_group_info(
     Skissm__GroupInfo **dest,
     Skissm__GroupInfo *old_group_info,
@@ -407,6 +408,7 @@ void remove_group_members_from_group_info(
     (*dest)->n_group_members = new_group_members_num;
     (*dest)->group_members = (Skissm__GroupMember **)malloc(sizeof(Skissm__GroupMember *) * new_group_members_num);
     size_t i, cur_pos = 0;
+    //! 這邊感覺可以優化???
     for (i = 0; i < old_group_members_num; i++) {
         if ((cur_pos == removing_members_num)
             ||((old_group_info->group_members)[i]->role != removing_members[cur_pos]->role)
